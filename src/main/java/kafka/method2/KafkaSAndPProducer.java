@@ -15,6 +15,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 import java.util.Scanner;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Created by ramindu on 3/3/17.
@@ -44,7 +45,7 @@ public class KafkaSAndPProducer {
         }
     }
     public static void main(String[] args) {
-        long totalRecordCount = 0;
+        AtomicLong totalRecordCount = new AtomicLong(0);
         long durationInMillies;
         if (args.length >= 1) {
             durationInMillies = Long.parseLong(args[0])*60*1000;
@@ -73,6 +74,13 @@ public class KafkaSAndPProducer {
             topic = "sandpglobal";
         }
 
+        long totalNumber;
+        if (args.length >= 5) {
+            totalNumber = Integer.parseInt(args[4]);
+        } else {
+            totalNumber = 100000;
+        }
+
         String payload = "{  \"schemaVersion\": \"v1.0\",  \"id\": \"8ea3bb63-6ca1-4eda-9e39-84218d3b5ad5\",  \"contentGroup\": \"Binary Package\",  \"contentType\": \"Package\",  \"content\": [],  \"instanceIdentifier\": \"4c080d8f-6fd7-4aa2-81b4-c904eae0c02a\",  \"commodities\": [\"Natural Gas\",\"Oil\"],  \"commoditiesV2\": [\"Natural Gas\",\"Oil\"],  \"geographies\": [\"North America\",\"Asia\"],  \"pricingRegions\": [],  \"companies\": [],  \"subjectAreas\": [],  \"contentStatus\": \"Published\",  \"copyright\": [],  \"name\": \"GD_20200727.pdf\",  \"mghId\": \"4c080d8f-6fd7-4aa2-81b4-c904eae0c02a\",  \"sourceId\": {    \"sourceSystem\": \"PEN\",    \"text\": \"8ea3bb63-6ca1-4eda-9e39-84218d3b5ad5\"  },  \"mimeType\": \"application/pdf\",  \"filedBy\": \"SYS-PLATTSHARMONY-PROD\",  \"owner\": \"kenni_padmore\",  \"createdDate\": \"2020-07-25T00:43:58.903Z\",  \"publications\": [\"Gas Daily\"],  \"updatedDate\": \"2020-07-25T00:59:24.689Z\",  \"language\": \"English\",  \"source\": [],  \"branding\": [],  \"rights\": [],  \"richMediaImageTitle\": [],  \"userIn\": [],  \"packageShortCode\": \"GD\",  \"coverDate\": \"2020-07-27T00:00:00Z\",  \"byteSize\": \"1956856\",  \"referenceId\": \"/company_home/Platts/Package/Gas Daily/20200727/GD_20200727_d072061c-f787-40d3-b00f-5924951ce86d.pdf\"}\n";
 
         Properties props = new Properties();
@@ -88,12 +96,16 @@ public class KafkaSAndPProducer {
         long endTime = System.currentTimeMillis() + durationInMillies;
         Producer<String, String> producer = new KafkaProducer<String, String>(props);
         long thoughputStartTime = System.currentTimeMillis();
-        long numOfEvents = 0;
+        AtomicLong numOfEvents = new AtomicLong(0);
         while (endTime > System.currentTimeMillis()) {
-            numOfEvents++;
-            totalRecordCount++;
-            if (numOfEvents == thoughputEvents || thoughputStartTime + 1000 < System.currentTimeMillis()) {
-                System.out.println("Sent " + numOfEvents + " per second. totalRecordCount: " + totalRecordCount);
+            if (totalNumber == totalRecordCount.get()) {
+                System.out.println("Sent " + numOfEvents + " per second. totalRecordCount: " + totalRecordCount.get());
+                break;
+            }
+            numOfEvents.incrementAndGet();
+            totalRecordCount.incrementAndGet();
+            if (numOfEvents.get() == thoughputEvents || thoughputStartTime + 1000 < System.currentTimeMillis()) {
+                System.out.println("Sent " + numOfEvents + " per second. totalRecordCount: " + totalRecordCount.get());
                 if (thoughputStartTime + 1000 > System.currentTimeMillis()) {
                     try {
                         Thread.sleep((thoughputStartTime + 1000) - System.currentTimeMillis());
@@ -102,7 +114,7 @@ public class KafkaSAndPProducer {
                     }
                 }
                 thoughputStartTime = System.currentTimeMillis();
-                numOfEvents = 0;
+                numOfEvents = new AtomicLong(0);
             }
             producer.send(new ProducerRecord<String, String>(topic, 0, null, payload));
         }
